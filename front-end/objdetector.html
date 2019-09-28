@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <meta name="description" content="" />
+  <meta name="author" content="" />
+
+  <title>Object Detection Service</title>
+
+  <!-- Bootstrap core CSS -->
+  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" /> 
+  <script type="text/javascript" src="mclass/logic.js"></script>
+
+</head>
+
+<body onload="body_load()">
+
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark static-top">
+    <div class="container">
+      <a class="navbar-brand" href="#">Object Detection Service</a>
+    </div>
+  </nav>
+
+  <!-- Page Content -->
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-12 text-center">
+        <h1 class="mt-5">Object Detection Service</h1>
+        <p class="lead">By Alexander Busch and Jorge Orozco</p>
+      </div>
+    </div>
+
+    <!--Readme text-->
+      <div class="row">
+        <div class="col-md-2"></div>
+        <div class="col-md-8">
+          <p>This is a readme text. It should contain an intro to the project and say that we want a good grade. We are ready for the model integration into the architecture! </p>
+          <hr />
+        </div>
+        <div class="col-md-2"></div>
+      </div>
+        
+
+    <!--Exectution-->
+    <div class="row pt-4">
+      <div class="col-md-5">
+        <img src='' id="preview_img" class='img-fluid' />
+              Select an image to analyze : <input type="file"  onchange="img_preview()" id="input_slct" name="image" />
+              <hr />
+              Status: <p id='status'></p><br />
+              <input type="button" id="submit_btn" value="Analyze" onclick='http_call()' disabled /><br />
+      </div>
+      <div class="col-md-2"></div>
+      <div class="col-md-5">
+        <img src='' id="output_img" class='img-fluid' />
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-12 mb-5" > </div>
+    </div>
+  </div>
+
+
+  <!-- Bootstrap core JavaScript -->
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>
