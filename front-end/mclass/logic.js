@@ -71,7 +71,7 @@ function valid_img(){
     max_dims = [500, 500]
     preview = document.getElementById('preview_img');
 
-    if(preview.naturalWidth > max_dims[0] || preview.naturalHeight > max_dims[1]){
+    if(preview.naturalWidth >= max_dims[0] || preview.naturalHeight >= max_dims[1]){
 
         error_message = 'The image should be less than '.concat(max_dims[0].toString(), ' px and ', max_dims[1].toString(), ' px of width and heigth respectively.')
 
@@ -102,8 +102,8 @@ function http_call(){
         request.addEventListener("error", transferFailed);
         request.addEventListener("abort", transferCanceled);
 
-        var url = 'https://y4b2zohpb7.execute-api.eu-central-1.amazonaws.com/Prod/detect/';
-        // var url = 'http://127.0.0.1:3000/detect';
+        var url = 'https://<restapiid>.execute-api.eu-central-1.amazonaws.com/Prod/myservice/';
+        // var url = 'http://127.0.0.1:3000/detection';
         request.open("POST", url);
         
         request.send(reader.result);
