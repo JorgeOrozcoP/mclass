@@ -8,141 +8,111 @@ except ImportError:
 import os
 import io
 import json
-import tarfile
-import glob
-import time
 import logging
 import base64
-
 import boto3
-import requests
-from PIL import Image
-
 import torch
-import torch.nn.functional as F
-from torchvision import models, transforms
-
-
 
 # our library
 from RetinaNetAndAuxillaries import *
 
-from fastai.vision import load_learner
+# need requirements.txt file for this to work!
+from fastai.vision import *
 
 
 # load the S3 client when lambda execution context is created
 s3 = boto3.client('s3')
 
 # classes for the image classification
-classes = []
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # get bucket name from ENV variable
-MODEL_BUCKET=os.environ.get('MODEL_BUCKET')
+MODEL_BUCKET = os.environ.get('MODEL_BUCKET')
 logger.info(f'Model Bucket is {MODEL_BUCKET}')
 
 # get bucket prefix from ENV variable
-MODEL_KEY=os.environ.get('MODEL_KEY')
+MODEL_KEY = os.environ.get('MODEL_KEY')
 logger.info(f'Model Prefix is {MODEL_KEY}')
 
-# un-comment (maybe) for preprocessing
-# processing pipeline to resize, normalize and create tensor object
-# preprocess = transforms.Compose([
-#     transforms.Resize(256),
-#     transforms.CenterCrop(224),
-#     transforms.ToTensor(),
-#     transforms.Normalize(
-#         mean=[0.485, 0.456, 0.406],
-#         std=[0.229, 0.224, 0.225]
-#     )
-# ])
-
-# un-comment for production
 
 def load_model():
     """Loads the PyTorch model into memory from a file on S3.
 
     Returns
     ------
-    Vision model: Module
-        Returns the vision PyTorch model to use for inference.
+    Vision model: learn
+        Returns the vision fastai model to use for inference.
 
     """      
-    global classes
     logger.info('Loading model from S3')
-    obj = s3.get_object(Bucket=MODEL_BUCKET, Key=MODEL_KEY)
+
+    m_key = 'models/stage2-256-exp.pkl'
+    obj = s3.get_object(Bucket=MODEL_BUCKET, Key=m_key)
     # bytestream = io.BytesIO(obj['Body'].read())
 
-    print(obj.keys())
+    learn = load_learner(path='.', file=io.BytesIO(obj['Body'].read()))
 
-
-
-    # learn = load_learner(file=io.BytesIO(img_request.content).read())
-
-    # learn = load_learner(path=MODELS, file='stage2-256.pkl')
+    return learn
 
 
 # =======>> uncomment fo production
 
 # load the model when lambda execution context is created
-# model = load_model()
+learn = load_model()
 
 
-def predict(input_object, model):
-    """Predicts the class from an input image.
-
-    Parameters
-    ----------
-    input_object: Tensor, required
-        The tensor object containing the image pixels reshaped and normalized.
-
-    Returns
-    ------
-    Response object: dict
-        Returns the predicted class and confidence score.
-
-    """        
-    logger.info("Calling prediction on model")
-    start_time = time.time()
-    predict_values = model(input_object)
-    logger.info("--- Inference time: %s seconds ---" % (time.time() - start_time))
-    preds = F.softmax(predict_values, dim=1)
-    conf_score, indx = torch.max(preds, dim=1)
-    predict_class = classes[indx]
-    logger.info(f'Predicted class is {predict_class}')
-    logger.info(f'Softmax confidence score is {conf_score.item()}')
-    response = {}
-    response['class'] = str(predict_class)
-    response['confidence'] = conf_score.item()
-    return response
-
-def input_fn(request_body):
-    """Pre-processes the input data from JSON to PyTorch Tensor.
-
-    Parameters
-    ----------
-    request_body: dict, required
-        The request body submitted by the client. Expect an entry 'url' containing a URL of an image to classify.
-
-    Returns
-    ------
-    PyTorch Tensor object: Tensor
-
-    """    
-    logger.info("Getting input URL to a image Tensor object")
-    if isinstance(request_body, str):
-        request_body = json.loads(request_body)
-    img_request = requests.get(request_body['url'], stream=True)
-    img = PIL.Image.open(io.BytesIO(img_request.content))
-    img_tensor = preprocess(img)
-    img_tensor = img_tensor.unsqueeze(0)
-    # return img_tensor
+def process_output2(output, i, detect_thresh=0.25):
+    """AB: ratios and scales are added, hardcoded"""
+    ratios = [1 / 2, 1, 2]
+    scales = [1,2**(-1 / 3), 2**(-2 / 3)]
+    clas_pred,bbox_pred,sizes = output[0][i], output[1][i], output[2]
+    anchors = create_anchors(sizes, ratios, scales).to(clas_pred.device)
+    bbox_pred = activ_to_bbox(bbox_pred, anchors)
+    clas_pred = torch.sigmoid(clas_pred)
+    detect_mask = clas_pred.max(1)[0] > detect_thresh
+    bbox_pred, clas_pred = bbox_pred[detect_mask], clas_pred[detect_mask]
+    bbox_pred = tlbr2cthw(torch.clamp(cthw2tlbr(bbox_pred), min=-1, max=1))    
+    if clas_pred.numel() == 0: return [],[],[]
+    scores, preds = clas_pred.max(1)
+    return bbox_pred, scores, preds
 
 
+def show_preds2(img, output, idx, detect_thresh=0.25, classes=None, ax=None):
+    """AB: ratios and scales are added in process_output2, hardcoded"""
 
-## ================= >> My code starts here
+    bbox_pred, scores, preds = process_output2(output, idx, detect_thresh)
+    if len(scores) != 0:
+        to_keep = nms(bbox_pred, scores)
+        bbox_pred, preds, scores = bbox_pred[to_keep].cpu(), preds[to_keep].cpu(), scores[to_keep].cpu()
+        t_sz = torch.Tensor([*img.size])[None].float()
+        bbox_pred[:,:2] = bbox_pred[:,:2] - bbox_pred[:,2:] / 2
+        bbox_pred[:,:2] = (bbox_pred[:,:2] + 1) * t_sz / 2
+        bbox_pred[:,2:] = bbox_pred[:,2:] * t_sz
+        bbox_pred = bbox_pred.long()
+    if ax is None: fig, ax = plt.subplots(1,1)
+    img.show(ax=ax)
+    for bbox, c, scr in zip(bbox_pred, preds, scores):
+        txt = str(c.item()) if classes is None else classes[c.item() + 1]
+        draw_rect(ax, [bbox[1],bbox[0],bbox[3],bbox[2]], 
+            text=f'{txt} {scr:.2f}')
+    # AB: added to have the output as a file
+
+    # save image in memory
+    buff = io.BytesIO()
+    fig.savefig(buff)
+
+    return buff
+
+
+def get_classes():
+    '''get the classes for the predictions'''
+
+    return ['background', 'aeroplane', 'bicycle', 'bird', 'boat',
+    'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable',
+    'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep',
+    'sofa', 'train', 'tvmonitor']
 
 
 def parse_encoded_string(enc_string):
@@ -162,7 +132,9 @@ def get_input(event):
     encoded_img = parse_encoded_string(event['body'])
 
     decoded = base64.b64decode(encoded_img)
-    img = Image.open(io.BytesIO(decoded))
+
+    # fastai method
+    img = open_image(io.BytesIO(decoded))
 
     return img
 
@@ -170,35 +142,43 @@ def get_input(event):
 def analyze(img):
     '''Run main algorithm'''
 
-    # width, height = img.size
+    # cuda for using CPU, unsqueeze for simulating a bunch of images,
+    # resize for equivalent image, acutally not necessary
+    # learn.predict(img.resize(256).data.unsqueeze(0)) is errorneous
+    # thats why torch.no_grad is used
 
-    img = img.rotate(90)
+    with torch.no_grad():
+        output = learn.model(img.resize(256).data.unsqueeze(0))
+
+    classes_list = get_classes()
+
+    img = show_preds2(img, output, 0, detect_thresh=0.25, 
+        classes=classes_list, ax=None)
 
     return img
 
 
-def get_output(img):
-    '''input a PIL loaded image, return an encoded base64 string
+def get_output(buff):
+    '''input a buffer of loaded image, return an encoded base64 string
     ready for html parsing'''
 
     # from: https://stackoverflow.com/questions/48229318/
     # how-to-convert-image-pil-into-base64-without-saving?rq=1
 
-    header = 'data:image/jpeg;base64,'
-
-    buff = io.BytesIO()
-    img.save(buff,format="JPEG")
+    header = 'data:image/png;base64,'
 
     return header + base64.b64encode(buff.getvalue()).decode('UTF-8')
 
 
 def lambda_handler(event, context):
+    '''AWS Lambda handler. A base64 encoded image is expected in 
+    event["body"]. Returns an annotated image'''
 
     img = get_input(event)
 
-    processed_img = analyze(img)
+    img_buffer = analyze(img)
 
-    enc_img = get_output(processed_img)
+    enc_img = get_output(img_buffer)
 
 
     return {
