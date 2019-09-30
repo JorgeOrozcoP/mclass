@@ -9,7 +9,7 @@ Parameters:
     Description: Enter the name of the S3 bucket storing your PyTorch model artefacts.
   ObjectKey: 
     Type: String
-    Default: models/stage2-256-exp.pkl
+    Default: models.stage2-256-exp.pkl
     Description: Enter the S3 object key path of your PyTorch model artefacts.
   LambdaLayerArn:
     Type: String

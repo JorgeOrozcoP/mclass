@@ -5,10 +5,10 @@ try:
 except ImportError:
     pass
 
-import os
+# import os
 import io
 import json
-import logging
+# import logging
 import base64
 import boto3
 import torch
@@ -25,16 +25,16 @@ s3 = boto3.client('s3')
 
 # classes for the image classification
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+# logger = logging.getLogger()
+# logger.setLevel(logging.INFO)
 
 # get bucket name from ENV variable
-MODEL_BUCKET = os.environ.get('MODEL_BUCKET')
-logger.info(f'Model Bucket is {MODEL_BUCKET}')
+# MODEL_BUCKET = os.environ.get('MODEL_BUCKET')
+# logger.info(f'Model Bucket is {MODEL_BUCKET}')
 
 # get bucket prefix from ENV variable
-MODEL_KEY = os.environ.get('MODEL_KEY')
-logger.info(f'Model Prefix is {MODEL_KEY}')
+# MODEL_KEY = os.environ.get('MODEL_KEY')
+# logger.info(f'Model Prefix is {MODEL_KEY}')
 
 
 def load_model():
@@ -49,7 +49,8 @@ def load_model():
     logger.info('Loading model from S3')
 
     m_key = 'models/stage2-256-exp.pkl'
-    obj = s3.get_object(Bucket=MODEL_BUCKET, Key=m_key)
+    bucket = 'objdetection-orozcobusch'
+    obj = s3.get_object(Bucket=bucket, Key=m_key)
     # bytestream = io.BytesIO(obj['Body'].read())
 
     learn = load_learner(path='.', file=io.BytesIO(obj['Body'].read()))
