@@ -28,18 +28,18 @@ Then run the following commands
 
 ```sam build```
 
-```sam package --output-template packaged.yaml --s3-bucket {NAME OF YOUR AWS BUCKET}}```
+```sam package --output-template packaged.yaml --s3-bucket {NAME OF YOUR AWS BUCKET}```
 
 ```sam deploy --template-file packaged.yaml --region {REGION TO DEPLOY} --capabilities CAPABILITY_IAM --stack-name aws-sam-getting-started```
 
 ### obj-detector
 NOTE: the deployment only worked for local testing
 
-```cd sam-app```
+```cd obj-detector```
 
 ```sam build --use-container```
 
-```sam package --output-template packaged.yaml --s3-bucket {NAME OF YOUR AWS BUCKET}}```
+```sam package --output-template packaged.yaml --s3-bucket {NAME OF YOUR AWS BUCKET}```
 
 Test locally
 
